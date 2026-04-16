@@ -13,7 +13,9 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Multimodule template"
+enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
+
+rootProject.name = "multimodule-template"
 
 include(":app")
 include(":core:model")

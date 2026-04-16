@@ -43,12 +43,12 @@ ksp {
 }
 
 dependencies {
-    implementation(project(":core:ui"))
-    implementation(project(":feature:post:impl"))
-    implementation(project(":feature:post:api"))
+    implementation(projects.core.ui)
+    implementation(projects.feature.post.impl)
+    implementation(projects.feature.post.api)
 
     // Network
-    implementation(project(":core:network"))
+    implementation(projects.core.network)
 
     // Core Android dependencies
     implementation(libs.androidx.core.ktx)
@@ -75,8 +75,8 @@ dependencies {
     kspTest(libs.hilt.compiler)
 
     // Instrumented tests
-    androidTestImplementation(project(":core:testing"))
-    androidTestImplementation(project(":core:data"))
+    androidTestImplementation(projects.core.testing)
+    androidTestImplementation(projects.core.data)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.hilt.android.testing)
     androidTestImplementation(libs.androidx.test.ext.junit)

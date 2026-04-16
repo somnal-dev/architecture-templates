@@ -12,11 +12,11 @@ android {
 }
 
 dependencies {
-    implementation(project(":core:data"))
-    implementation(project(":core:ui"))
-    implementation(project(":feature:post:api"))
+    implementation(projects.core.data)
+    implementation(projects.core.ui)
+    implementation(projects.feature.post.api)
 
-    androidTestImplementation(project(":core:testing"))
+    androidTestImplementation(projects.core.testing)
 
     // Core Android dependencies
     implementation(libs.androidx.activity.compose)

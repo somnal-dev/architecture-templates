@@ -13,12 +13,12 @@ android {
 }
 
 dependencies {
-    implementation(project(":core:database"))
+    implementation(projects.core.database)
 
     implementation(libs.kotlinx.coroutines.android)
 
-    api(project(":core:model"))
-    api(project(":core:network"))
+    api(projects.core.model)
+    api(projects.core.network)
 
     // Local tests
     testImplementation(libs.kotlinx.coroutines.test)
