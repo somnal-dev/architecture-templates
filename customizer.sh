@@ -42,20 +42,24 @@ DATAMODEL_ALL_LOWER="$(echo "$DATAMODEL" | tr '[:upper:]' '[:lower:]')"
 
 for n in $(find . -type d \( -path '*/src/androidTest' -or -path '*/src/main' -or -path '*/src/test' \) )
 do
-  SRC="$n/java/android/template"
-  if [[ ! -d "$SRC" ]]; then
+  moved=0
+  for SRCTYPE in kotlin java; do
+    SRC="$n/$SRCTYPE/android/template"
+    if [[ ! -d "$SRC" ]]; then
+      continue
+    fi
+    echo "Creating $n/$SRCTYPE/$SUBDIR"
+    mkdir -p "$n/$SRCTYPE/$SUBDIR"
+    echo "Moving files to $n/$SRCTYPE/$SUBDIR"
+    cp -r "$SRC/." "$n/$SRCTYPE/$SUBDIR/"
+    echo "Removing old $n/$SRCTYPE/android"
+    rm -rf "$n/$SRCTYPE/android"
+    find "$n/$SRCTYPE" -type d -empty -delete 2>/dev/null || true
+    moved=1
+  done
+  if [[ $moved -eq 0 ]]; then
     echo "Skipping $n (no android/template source found)"
-    continue
   fi
-  echo "Creating $n/java/$SUBDIR"
-  mkdir -p "$n/java/$SUBDIR"
-  echo "Moving files to $n/java/$SUBDIR"
-  cp -r "$SRC/." "$n/java/$SUBDIR/"
-  echo "Removing old $n/java/android"
-  rm -rf "$n/java/android"
-  
-  # Clean up any leftover empty directories (e.g. from git rollbacks)
-  find "$n/java" -type d -empty -delete 2>/dev/null || true
 done
 
 echo "Renaming packages to $PACKAGE"
@@ -90,12 +94,20 @@ find . -name "*.bak" -type f -delete
 
 echo "Renaming files to $DATAMODEL"
 if [[ "$DATAMODEL_UPPER" != "Post" ]]; then
-  find ./ -name "*Post*.kt" | sed "p;s/Post/$DATAMODEL_UPPER/" | tr '\n' '\0' | xargs -0 -n 2 mv
+  # -depth: rename files before their parent dirs are renamed
+  find ./ -depth -type f -name "*Post*.kt" | while IFS= read -r f; do
+    parent="$(dirname "$f")"
+    base="$(basename "$f")"
+    mv "$f" "$parent/${base//Post/$DATAMODEL_UPPER}"
+  done
 fi
 
 if [[ "$DATAMODEL_ALL_LOWER" != "post" ]]; then
   echo "Renaming directories to $DATAMODEL"
-  find ./ -name "post" -type d  | sed "p;s/post/$DATAMODEL_ALL_LOWER/" |  tr '\n' '\0' | xargs -0 -n 2 mv
+  # -depth processes leaves first so nested `post` dirs rename before their parents
+  find ./ -depth -type d -name "post" | while IFS= read -r d; do
+    mv "$d" "${d%/post}/$DATAMODEL_ALL_LOWER"
+  done
 fi
 
 if [[ $APPNAME != MyApplication ]]
