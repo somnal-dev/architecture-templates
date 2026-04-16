@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 #
 # install-zshrc.sh
-# ~/.zshrc 에 `android-template` 명령어를 등록합니다.
+# ~/.zshrc 에 `at` 명령어를 등록합니다.
 #
 # 사용법 (현재 쉘에 바로 적용하려면 반드시 source 로 실행):
 #   source ./install-zshrc.sh
@@ -10,7 +10,7 @@
 # 적용되지 않아 새 터미널을 열어야 합니다.
 #
 # 등록 후 원하는 디렉토리에서:
-#   android-template
+#   at
 # 을 입력하면 프로젝트 폴더명, 패키지명, 데이터모델명, 앱클래스명을
 # 대화형으로 물어본 뒤 현재 디렉토리에 템플릿을 복제/커스터마이즈 합니다.
 
@@ -18,14 +18,14 @@ set -e
 
 # Detect whether this file is being sourced or executed.
 if [[ -n "${ZSH_EVAL_CONTEXT:-}" && "$ZSH_EVAL_CONTEXT" == *:file* ]]; then
-  __ANDROID_TEMPLATE_SOURCED=1
+  __AT_SOURCED=1
 else
-  __ANDROID_TEMPLATE_SOURCED=0
+  __AT_SOURCED=0
 fi
 
 ZSHRC="${ZSHRC:-$HOME/.zshrc}"
-MARK_START="# >>> android-template >>>"
-MARK_END="# <<< android-template <<<"
+MARK_START="# >>> at >>>"
+MARK_END="# <<< at <<<"
 
 if [[ ! -f "$ZSHRC" ]]; then
   echo "Creating $ZSHRC"
@@ -33,7 +33,7 @@ if [[ ! -f "$ZSHRC" ]]; then
 fi
 
 if grep -q "$MARK_START" "$ZSHRC"; then
-  echo "기존 android-template 블록을 제거하고 재설치합니다."
+  echo "기존 at 블록을 제거하고 재설치합니다."
   # Delete the block between markers (inclusive). macOS/BSD sed 호환.
   tmp="$(mktemp)"
   awk -v s="$MARK_START" -v e="$MARK_END" '
@@ -46,10 +46,10 @@ fi
 
 cat >> "$ZSHRC" <<'EOF'
 
-# >>> android-template >>>
+# >>> at >>>
 # Scaffold a new Android project from somnal-dev/architecture-templates.
-# Usage: run `android-template` in the directory where you want the new project.
-android-template() {
+# Usage: run `at` in the directory where you want the new project.
+at() {
   local repo_url="https://github.com/somnal-dev/architecture-templates.git"
   local project_dir projectname package datamodel appname
 
@@ -121,16 +121,16 @@ android-template() {
   echo
   echo "Done. cd $project_dir 로 이동하세요."
 }
-# <<< android-template <<<
+# <<< at <<<
 EOF
 
 echo "등록 완료."
 
-if [[ "$__ANDROID_TEMPLATE_SOURCED" == "1" ]]; then
+if [[ "$__AT_SOURCED" == "1" ]]; then
   echo "현재 쉘에 반영 중..."
   # shellcheck disable=SC1090
   source "$ZSHRC"
-  echo "적용됨. 이제 원하는 디렉토리에서 'android-template' 을 실행하세요."
+  echo "적용됨. 이제 원하는 디렉토리에서 'at' 을 실행하세요."
 else
   echo "현재 쉘에는 반영되지 않았습니다. 아래 중 하나를 선택하세요:"
   echo "  1) 새 터미널을 열기"
@@ -138,4 +138,4 @@ else
   echo "  3) 다음엔 'source ./install-zshrc.sh' 형식으로 설치하면 자동 반영됩니다."
 fi
 
-unset __ANDROID_TEMPLATE_SOURCED
+unset __AT_SOURCED

@@ -15,13 +15,13 @@ feature/xxx/impl  ──▶  feature/xxx/api
                   ▼
              core/data
                   │
-          ┌───────┴────────┐
-          ▼                ▼
-    core/network      core/database
-          │                │
-          └──────┬─────────┘
-                 ▼
-            core/model
+       ┌──────────┼──────────┬────────────┐
+       ▼          ▼          ▼            ▼
+  core/network core/database core/datastore
+       │          │          │
+       └──────────┴────┬─────┘
+                       ▼
+                  core/model
 ```
 
 **모듈별 책임**
@@ -30,7 +30,8 @@ feature/xxx/impl  ──▶  feature/xxx/api
 | ------------------ | -------------------- | -------------------------------------- |
 | `core/model`       | 도메인 데이터 클래스 | `Post`, `Comment` 등 순수 data class   |
 | `core/network`     | 원격 API 통신        | Retrofit interface, NetworkModule      |
-| `core/database`    | 로컬 영속화          | Room Entity/DAO, DatabaseModule        |
+| `core/database`    | 로컬 영속화(구조형)  | Room Entity/DAO, DatabaseModule. 상세: [database-development-guide.md](./database-development-guide.md) |
+| `core/datastore`   | 사용자 환경설정      | Preferences DataStore, UserPreferencesDataSource. 상세: [datastore-development-guide.md](./datastore-development-guide.md) |
 | `core/data`        | Repository 계층      | `XxxRepository` interface + Impl       |
 | `core/ui`          | 공용 Composable      | 재사용 UI 컴포넌트, Theme              |
 | `core/testing`     | 공용 테스트 유틸     | HiltTestRunner, 공용 Fake              |
