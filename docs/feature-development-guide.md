@@ -34,8 +34,8 @@ feature/xxx/impl  ──▶  feature/xxx/api
 | `core/data`        | Repository 계층      | `XxxRepository` interface + Impl       |
 | `core/ui`          | 공용 Composable      | 재사용 UI 컴포넌트, Theme              |
 | `core/testing`     | 공용 테스트 유틸     | HiltTestRunner, 공용 Fake              |
-| `feature/xxx/api`  | 기능 외부 진입점     | `NavigationKeys`, (선택) 외부 노출 API |
-| `feature/xxx/impl` | 기능 구현            | ViewModel, Composable, EntryProvider   |
+| `feature/xxx/api`  | 기능 외부 진입점     | `NavKey`, (선택) 외부 노출 API         |
+| `feature/xxx/impl` | 기능 구현            | ViewModel, Composable, Entry           |
 | `app`              | 앱 진입점            | MainActivity, 네비게이션 그래프 조립   |
 
 **중요 원칙**
@@ -216,11 +216,11 @@ interface DataModule {
 
 ```bash
 # api 모듈
-mkdir -p feature/comment/api/src/main/kotlin/android/template/feature/comment/api
+mkdir -p feature/comment/api/src/main/kotlin/android/template/feature/comment/navigation
 
 # impl 모듈
 mkdir -p feature/comment/impl/src/main/kotlin/android/template/feature/comment/ui
-mkdir -p feature/comment/impl/src/main/kotlin/android/template/feature/comment/api
+mkdir -p feature/comment/impl/src/main/kotlin/android/template/feature/comment/navigation
 mkdir -p feature/comment/impl/src/test/kotlin/android/template/feature/comment/ui
 mkdir -p feature/comment/impl/src/androidTest/kotlin/android/template/feature/comment/ui
 ```
@@ -233,11 +233,11 @@ mkdir -p feature/comment/impl/src/androidTest/kotlin/android/template/feature/co
 feature/comment/
 ├── api/
 │   ├── build.gradle.kts
-│   └── src/main/kotlin/android/template/feature/comment/api/NavigationKeys.kt
+│   └── src/main/kotlin/android/template/feature/comment/navigation/CommentNavKey.kt
 └── impl/
     ├── build.gradle.kts
     └── src/main/kotlin/android/template/feature/comment/
-        ├── api/CommentEntryProvider.kt
+        ├── navigation/CommentNavigation.kt
         └── ui/
             ├── CommentScreen.kt
             └── CommentViewModel.kt
@@ -319,18 +319,18 @@ dependencies {
 }
 ```
 
-#### 4-5. NavigationKey 정의 (api 모듈)
+#### 4-5. NavKey 정의 (api 모듈)
 
-`feature/comment/api/src/main/kotlin/android/template/feature/comment/api/NavigationKeys.kt`:
+`feature/comment/api/src/main/kotlin/android/template/feature/comment/navigation/CommentNavKey.kt`:
 
 ```kotlin
-package android.template.feature.comment.api
+package android.template.feature.comment.navigation
 
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class CommentList(val postId: Int) : NavKey
+data class CommentNavKey(val postId: Int) : NavKey
 ```
 
 체크리스트
@@ -458,12 +458,12 @@ private fun CommentItem(comment: Comment) {
 - [ ] `LazyColumn`에는 반드시 `key = { ... }`를 지정한다 (성능).
 - [ ] `when (state)`는 sealed로 exhaustive하게 작성, `else` 분기 금지.
 
-#### 4-8. EntryProvider 작성
+#### 4-8. Entry 작성
 
-`feature/comment/impl/src/main/kotlin/android/template/feature/comment/api/CommentEntryProvider.kt`:
+`feature/comment/impl/src/main/kotlin/android/template/feature/comment/navigation/CommentNavigation.kt`:
 
 ```kotlin
-package android.template.feature.comment.api
+package android.template.feature.comment.navigation
 
 import android.template.feature.comment.ui.CommentScreen
 import androidx.compose.foundation.layout.padding
@@ -475,8 +475,8 @@ import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 
 @Composable
-fun EntryProviderScope<NavKey>.CommentEntryProvider(backStack: NavBackStack<NavKey>) {
-    entry<CommentList> { key ->
+fun EntryProviderScope<NavKey>.commentEntry(backStack: NavBackStack<NavKey>) {
+    entry<CommentNavKey> { key ->
         CommentScreen(modifier = Modifier.padding(16.dp))
     }
 }
@@ -484,8 +484,8 @@ fun EntryProviderScope<NavKey>.CommentEntryProvider(backStack: NavBackStack<NavK
 
 체크리스트
 
-- [ ] EntryProvider는 impl 모듈에 두고, 패키지는 `...feature.comment.api`로 둬 외부에서 호출 시 이름이 깔끔하게 나오게 한다.
-- [ ] `entry<CommentList> { key -> ... }`에서 `key`로 `postId`에 접근 가능 (현재는 ViewModel이 `SavedStateHandle`로 받음).
+- [ ] Entry는 impl 모듈에 두고, 패키지는 `...feature.comment.navigation`으로 둬 외부에서 호출 시 이름이 깔끔하게 나오게 한다.
+- [ ] `entry<CommentNavKey> { key -> ... }`에서 `key`로 `postId`에 접근 가능 (현재는 ViewModel이 `SavedStateHandle`로 받음).
 
 ---
 
@@ -504,7 +504,7 @@ dependencies {
 }
 ```
 
-#### 5-2. 네비게이션 그래프에 EntryProvider 등록
+#### 5-2. 네비게이션 그래프에 Entry 등록
 
 `app/src/main/kotlin/android/template/ui/MainActivity.kt` (또는 네비게이션 그래프가 조립되는 파일)에서:
 
@@ -512,8 +512,8 @@ dependencies {
 NavDisplay(
     backStack = backStack,
     entryProvider = entryProvider {
-        PostEntryProvider(backStack)
-        CommentEntryProvider(backStack)   // 추가
+        postEntry(backStack)
+        commentEntry(backStack)   // 추가
     }
 )
 ```
@@ -525,7 +525,7 @@ NavDisplay(
 ```kotlin
 PostScreen(
     onItemClick = { post ->
-        backStack.add(CommentList(postId = post.id))
+        backStack.add(CommentNavKey(postId = post.id))
     }
 )
 ```
@@ -575,7 +575,7 @@ PostScreen(
 | Repository      | `XxxRepository` interface + `DefaultXxxRepository` | `CommentRepository`, `DefaultCommentRepository` |
 | ViewModel       | `XxxViewModel`                                     | `CommentViewModel`                              |
 | UiState         | `XxxUiState` sealed interface                      | `CommentUiState.Loading` 등                     |
-| NavigationKey   | 역할을 드러내는 명사                               | `CommentList`, `PostDetail`                     |
+| NavKey          | 역할을 드러내는 명사                               | `CommentNavKey`, `PostNavKey`                  |
 | Composable 함수 | PascalCase                                         | `CommentScreen`, `CommentItem`                  |
 | 상수            | `SCREAMING_SNAKE_CASE` + `const val`               | `const val MAX_RETRY = 3`                       |
 
@@ -590,7 +590,7 @@ PostScreen(
 
 ## 6. 자주 하는 실수 체크리스트
 
-- [ ] NavigationKey에 `@Serializable` 안 붙이고 네비게이션 → 런타임 크래시
+- [ ] NavKey에 `@Serializable` 안 붙이고 네비게이션 → 런타임 크래시
 - [ ] Repository를 추가했지만 `DataModule`에 `@Binds` 안 걸어줌 → Hilt 컴파일 에러
 - [ ] ViewModel에 `@HiltViewModel` 누락 → `hiltViewModel()` 호출 시 런타임 에러
 - [ ] `feature/xxx/impl`이 다른 feature의 `impl`을 참조 → 순환 의존 위험
