@@ -9,7 +9,7 @@
 이 프로젝트는 **멀티모듈 + 클린 아키텍처** 구조입니다. 의존성은 아래 방향으로만 흐릅니다.
 
 ```
-feature/xxx/impl  ──▶  feature/xxx/api
+feature/xxx/impl  ──▶  feature/xxx/api ──▶ core/navigation
        │                      │
        └──────────┬───────────┘
                   ▼
@@ -32,18 +32,20 @@ feature/xxx/impl  ──▶  feature/xxx/api
 | `core/network`     | 원격 API 통신        | Retrofit interface, NetworkModule      |
 | `core/database`    | 로컬 영속화(구조형)  | Room Entity/DAO, DatabaseModule. 상세: [database-development-guide.md](./database-development-guide.md) |
 | `core/datastore`   | 사용자 환경설정      | Preferences DataStore, UserPreferencesDataSource. 상세: [datastore-development-guide.md](./datastore-development-guide.md) |
+| `core/navigation`  | 네비게이션 진입점    | `Navigator` 클래스 (NavBackStack을 감싼 얇은 래퍼) |
 | `core/data`        | Repository 계층      | `XxxRepository` interface + Impl       |
 | `core/ui`          | 공용 Composable      | 재사용 UI 컴포넌트, Theme              |
 | `core/testing`     | 공용 테스트 유틸     | HiltTestRunner, 공용 Fake              |
-| `feature/xxx/api`  | 기능 외부 진입점     | `NavKey`, (선택) 외부 노출 API         |
+| `feature/xxx/api`  | 기능 외부 진입점     | `NavKey` + `Navigator.navigateToXxx()` 확장 |
 | `feature/xxx/impl` | 기능 구현            | ViewModel, Composable, Entry           |
-| `app`              | 앱 진입점            | MainActivity, 네비게이션 그래프 조립   |
+| `app`              | 앱 진입점            | MainActivity, Navigator 생성, 네비게이션 그래프 조립 |
 
 **중요 원칙**
 
 - `feature/xxx/impl`은 다른 feature의 `impl`을 참조하면 안 됩니다. 다른 feature가 필요하면 그쪽 `api`만 의존합니다.
 - `core/data`는 `core/network`와 `core/database`를 조합해 저장소의 단일 진실 원천(single source of truth)을 만듭니다.
 - UI에서 바로 `PostApi`를 호출하지 않습니다. 반드시 Repository를 통합니다.
+- 화면 간 이동은 Composable에 `NavKey`를 누출시키지 않습니다. `Navigator` 객체를 받아 `navigator.navigateToXxx()` 확장 함수를 호출합니다 (자세한 건 5-3 참조).
 
 ---
 
@@ -276,6 +278,14 @@ android {
 
 `template.android.feature.navigation` convention plugin이 Navigation3 의존성을 자동으로 포함합니다.
 
+`api` 모듈은 `core/navigation`을 `api` 의존성으로 선언합니다. 그래야 이 feature의 진입 헬퍼(`Navigator.navigateToXxx()`)가 호출자에게 그대로 노출됩니다.
+
+```kotlin
+dependencies {
+    api(projects.core.navigation)
+}
+```
+
 #### 4-4. `feature/comment/impl/build.gradle.kts`
 
 기존 `feature/post/impl/build.gradle.kts`를 템플릿으로 씁니다:
@@ -297,6 +307,7 @@ android {
 dependencies {
     implementation(projects.core.data)
     implementation(projects.core.ui)
+    implementation(projects.core.navigation)
     implementation(projects.feature.comment.api)
 
     androidTestImplementation(projects.core.testing)
@@ -320,25 +331,35 @@ dependencies {
 }
 ```
 
-#### 4-5. NavKey 정의 (api 모듈)
+#### 4-5. NavKey + Navigator 진입 헬퍼 (api 모듈)
 
 `feature/comment/api/src/main/kotlin/android/template/feature/comment/navigation/CommentNavKey.kt`:
 
 ```kotlin
 package android.template.feature.comment.navigation
 
+import android.template.core.navigation.Navigator
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
 @Serializable
 data class CommentNavKey(val postId: Int) : NavKey
+
+/**
+ * 다른 feature에서 comment 화면으로 이동할 때 호출하는 진입점.
+ * 호출부는 `CommentNavKey`의 존재를 알 필요 없이 `navigator.navigateToComment(postId)`만 쓰면 된다.
+ */
+fun Navigator.navigateToComment(postId: Int) {
+    navigate(CommentNavKey(postId))
+}
 ```
 
 체크리스트
 
 - [ ] 네비게이션 인자(`postId`)가 필요하면 `data class`로, 없으면 `data object`로 선언한다.
 - [ ] 반드시 `@Serializable`을 붙인다 (Navigation3의 타입 안전성).
-- [ ] 외부 모듈(다른 feature, app)은 이 키만 보고 이동한다.
+- [ ] 외부 모듈(다른 feature, app)은 `Navigator.navigateToXxx()` 확장만 보고 이동한다. `NavKey` 자체는 노출되어 있어도 **호출하지 않는다.**
+- [ ] 이 확장 함수가 이 feature의 **공개 진입 규약**이다. 파라미터가 변하면 호출자 모두 컴파일이 깨져 바로 드러난다.
 
 #### 4-6. ViewModel 구현 (impl 모듈)
 
@@ -410,15 +431,20 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun CommentScreen(
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: CommentViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    CommentContent(state = state, modifier = modifier)
+    CommentContent(state = state, onBack = onBack, modifier = modifier)
 }
 
 @Composable
-private fun CommentContent(state: CommentUiState, modifier: Modifier = Modifier) {
+private fun CommentContent(
+    state: CommentUiState,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     when (state) {
         is CommentUiState.Loading -> Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -455,6 +481,7 @@ private fun CommentItem(comment: Comment) {
 체크리스트
 
 - [ ] 공개 Composable은 stateless 버전(`CommentContent`)과 Hilt 연결 버전(`CommentScreen`)을 분리한다. Preview/Test가 쉬워진다.
+- [ ] **Screen은 `NavKey`·`Navigator`·`NavBackStack`을 받지 않는다.** 원시 값(`Int`/`String`) 또는 `() -> Unit` 콜백만 받는다 → Preview/다른 앱에서 재사용 가능.
 - [ ] `collectAsStateWithLifecycle()` 사용 (라이프사이클 인지 수집).
 - [ ] `LazyColumn`에는 반드시 `key = { ... }`를 지정한다 (성능).
 - [ ] `when (state)`는 sealed로 exhaustive하게 작성, `else` 분기 금지.
@@ -466,19 +493,23 @@ private fun CommentItem(comment: Comment) {
 ```kotlin
 package android.template.feature.comment.navigation
 
+import android.template.core.navigation.Navigator
 import android.template.feature.comment.ui.CommentScreen
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.EntryProviderScope
-import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 
 @Composable
-fun EntryProviderScope<NavKey>.commentEntry(backStack: NavBackStack<NavKey>) {
+fun EntryProviderScope<NavKey>.CommentEntry(navigator: Navigator) {
     entry<CommentNavKey> { key ->
-        CommentScreen(modifier = Modifier.padding(16.dp))
+        // key는 CommentNavKey 인스턴스 — ViewModel은 SavedStateHandle로 postId를 자동으로 받는다.
+        CommentScreen(
+            onBack = navigator::back,
+            modifier = Modifier.padding(16.dp),
+        )
     }
 }
 ```
@@ -486,6 +517,9 @@ fun EntryProviderScope<NavKey>.commentEntry(backStack: NavBackStack<NavKey>) {
 체크리스트
 
 - [ ] Entry는 impl 모듈에 두고, 패키지는 `...feature.comment.navigation`으로 둬 외부에서 호출 시 이름이 깔끔하게 나오게 한다.
+- [ ] Entry 함수명은 **PascalCase** (`CommentEntry`). `@Composable` 함수이므로 Compose 네이밍 규칙을 따른다.
+- [ ] Entry는 **`Navigator` 하나만** 받는다 (`NavBackStack`을 직접 받지 않는다).
+- [ ] Screen은 Entry에서 `navigator::back`, `{ id -> navigator.navigateToXxx(id) }` 같은 메서드 참조/람다로 엮는다. 이렇게 하면 Screen 자체는 Navigator를 모른다.
 - [ ] `entry<CommentNavKey> { key -> ... }`에서 `key`로 `postId`에 접근 가능 (현재는 ViewModel이 `SavedStateHandle`로 받음).
 
 ---
@@ -497,6 +531,7 @@ fun EntryProviderScope<NavKey>.commentEntry(backStack: NavBackStack<NavKey>) {
 ```kotlin
 dependencies {
     implementation(projects.core.ui)
+    implementation(projects.core.navigation)
     implementation(projects.feature.post.impl)
     implementation(projects.feature.post.api)
     implementation(projects.feature.comment.impl)   // 추가
@@ -505,31 +540,125 @@ dependencies {
 }
 ```
 
-#### 5-2. 네비게이션 그래프에 Entry 등록
+#### 5-2. 네비게이션 그래프 조립 — `Navigator` 생성 + Entry 등록
 
-`app/src/main/kotlin/android/template/ui/MainActivity.kt` (또는 네비게이션 그래프가 조립되는 파일)에서:
-
-```kotlin
-NavDisplay(
-    backStack = backStack,
-    entryProvider = entryProvider {
-        postEntry(backStack)
-        commentEntry(backStack)   // 추가
-    }
-)
-```
-
-#### 5-3. 다른 화면에서 네비게이션
-
-예: PostScreen에서 아이템 클릭 시 댓글 화면으로 이동
+`app/src/main/kotlin/android/template/ui/Navigation.kt`:
 
 ```kotlin
-PostScreen(
-    onItemClick = { post ->
-        backStack.add(CommentNavKey(postId = post.id))
-    }
-)
+@Composable
+fun MainNavigation() {
+    val backStack = rememberNavBackStack(PostNavKey)
+    val navigator = remember(backStack) { Navigator(backStack) }
+
+    NavDisplay(
+        backStack = backStack,
+        onBack = { navigator.back() },
+        entryDecorators = listOf(
+            rememberSaveableStateHolderNavEntryDecorator(),
+            rememberViewModelStoreNavEntryDecorator()
+        ),
+        entryProvider = entryProvider {
+            PostEntry(navigator = navigator)
+            CommentEntry(navigator = navigator)   // 추가
+        }
+    )
+}
 ```
+
+체크리스트
+
+- [ ] `Navigator`는 `remember(backStack)`로 한 번만 만든다. 매 재구성마다 새로 만들면 자식 Composable이 참조를 잃는다.
+- [ ] `NavDisplay.onBack`도 `navigator.back()`으로 통일한다. 뒤로가기 경로가 두 개가 되지 않도록 한다.
+- [ ] **`app` 모듈이 `NavBackStack`을 다루는 유일한 곳.** 이후 모든 feature는 `Navigator`만 받는다.
+
+#### 5-3. Feature 간 네비게이션 — `navigator.navigateToXxx(...)`
+
+예: `PostScreen`에서 아이템을 탭하면 `CommentScreen`으로 이동.
+
+**질문: 한 feature가 다른 feature를 불러도 되나?**
+
+짧은 답: **`api` 모듈만 의존하면 된다.** `impl`은 절대 안 된다. NIA(Now in Android)도 이렇게 한다.
+
+예) `nowinandroid/feature/foryou/impl/build.gradle.kts`:
+```kotlin
+implementation(projects.feature.topic.api)  // O — 상대 feature의 api만
+// implementation(projects.feature.topic.impl)  // X — impl 의존 절대 금지
+```
+
+**권장 패턴 (Typed Navigator)** — Screen은 원시 값만 받고, Entry에서 `Navigator`로 조립:
+
+**① `feature/comment/api`가 진입 규약(navigate 확장)을 노출한다**
+
+```kotlin
+// feature/comment/api/.../navigation/CommentNavKey.kt
+@Serializable
+data class CommentNavKey(val postId: Int) : NavKey
+
+fun Navigator.navigateToComment(postId: Int) {
+    navigate(CommentNavKey(postId))
+}
+```
+
+**② `PostScreen`은 `NavKey`·`Navigator`를 모른다 — 원시 콜백만 받는다**
+
+```kotlin
+// feature/post/impl/.../ui/PostScreen.kt
+@Composable
+fun PostScreen(
+    onPostClick: (Int) -> Unit,     // NavKey 대신 Int
+    modifier: Modifier = Modifier,
+    viewModel: PostViewModel = hiltViewModel(),
+) { /* ... */ }
+```
+
+**③ `PostEntry`에서 `feature:comment:api`의 확장으로 엮는다**
+
+```kotlin
+// feature/post/impl/build.gradle.kts
+dependencies {
+    implementation(projects.core.navigation)
+    implementation(projects.feature.post.api)
+    implementation(projects.feature.comment.api)   // api만 추가
+}
+```
+
+```kotlin
+// feature/post/impl/.../navigation/PostNavigation.kt
+import android.template.core.navigation.Navigator
+import android.template.feature.comment.navigation.navigateToComment
+
+@Composable
+fun EntryProviderScope<NavKey>.PostEntry(navigator: Navigator) {
+    entry<PostNavKey> {
+        PostScreen(
+            onPostClick = navigator::navigateToComment,   // 메서드 참조로 깔끔하게
+            modifier = Modifier.padding(16.dp),
+        )
+    }
+}
+```
+
+**왜 이렇게 하나 (Typed Navigator의 이점)**
+
+- **Screen이 재사용 가능** — `PostScreen`은 `CommentNavKey`·`Navigator`를 모른다. Preview/테스트/다른 앱에서 콜백만 갈아끼우면 된다.
+- **진입 규약이 타입으로 강제** — `navigateToComment(postId: Int)`의 시그니처가 바뀌면 호출자 모두 컴파일이 깨진다. 문자열 route("comment/{postId}")보다 훨씬 안전하다.
+- **`app`만 `NavBackStack`을 안다** — feature들은 `Navigator` 추상만 본다. 나중에 Navigation3 API가 바뀌어도 `Navigator` 한 곳만 수정하면 된다.
+- **호출부가 한 줄** — `navigator::navigateToComment` 같은 메서드 참조로 Entry가 읽기 쉬워진다.
+
+**feature가 많아질 때 (20+ feature)**
+
+이 패턴은 feature가 늘어도 그대로 확장된다:
+- 각 `feature:X:api`가 `Navigator.navigateToX(...)` 확장을 노출 → 호출자는 그 feature의 내부 구조를 몰라도 됨.
+- `app`은 여전히 Entry만 `entryProvider { ... }`에 나열 → NIA의 `NiaApp.kt`처럼 수십 개여도 관리 가능.
+- "이 feature가 다른 어떤 feature로 이동하는가"는 `feature:X:impl/build.gradle.kts`의 의존성 목록에서 한눈에 보인다.
+
+체크리스트
+
+- [ ] 상대 feature의 **api만** `implementation` — `impl` 의존은 절대 금지.
+- [ ] Screen 시그니처는 `NavKey`·`Navigator` 대신 **원시 값**(`Int`, `String`) 콜백으로 둔다.
+- [ ] `navigateToXxx(...)` 확장은 상대 feature의 **api**에 둔다 (호출 규약 문서화).
+- [ ] Entry는 `Navigator`를 받고, 메서드 참조(`navigator::navigateToXxx`)로 Screen 콜백에 주입한다.
+- [ ] 두 feature가 서로의 api를 참조해야 한다면 설계 문제일 가능성이 높다 → `core/model`이나 중재자 추출 검토.
 
 ---
 
@@ -595,6 +724,9 @@ PostScreen(
 - [ ] Repository를 추가했지만 `DataModule`에 `@Binds` 안 걸어줌 → Hilt 컴파일 에러
 - [ ] ViewModel에 `@HiltViewModel` 누락 → `hiltViewModel()` 호출 시 런타임 에러
 - [ ] `feature/xxx/impl`이 다른 feature의 `impl`을 참조 → 순환 의존 위험
+- [ ] Screen에 `NavKey`/`Navigator`를 직접 주입 → Preview/테스트 불가, feature 간 결합도 ↑. 원시 콜백으로 바꿀 것.
+- [ ] `Navigator`를 `remember` 없이 만들기 → 매 재구성마다 새 인스턴스 생성 (자식 콜백이 stale해짐).
+- [ ] `navigateToXxx` 확장을 `impl`에 두기 → 호출자가 `impl`에 의존해야 함 (규약 위반).
 - [ ] `!!` 사용 → NPE 위험
 - [ ] `try/catch`로 예외 삼킴 → 디버깅 불가능
 - [ ] `LazyColumn`에 `key` 지정 안 함 → 재구성 성능 저하

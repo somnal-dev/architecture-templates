@@ -9,3 +9,7 @@ android {
         consumerProguardFiles("consumer-rules.pro")
     }
 }
+
+dependencies {
+    api(projects.core.navigation)
+}

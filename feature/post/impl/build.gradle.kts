@@ -14,6 +14,7 @@ android {
 dependencies {
     implementation(projects.core.data)
     implementation(projects.core.ui)
+    implementation(projects.core.navigation)
     implementation(projects.feature.post.api)
 
     androidTestImplementation(projects.core.testing)

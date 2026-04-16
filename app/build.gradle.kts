@@ -44,6 +44,7 @@ ksp {
 
 dependencies {
     implementation(projects.core.ui)
+    implementation(projects.core.navigation)
     implementation(projects.feature.post.impl)
     implementation(projects.feature.post.api)
 

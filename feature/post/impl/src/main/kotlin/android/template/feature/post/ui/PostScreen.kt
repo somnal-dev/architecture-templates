@@ -33,11 +33,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation3.runtime.NavKey
 
 @Composable
 fun PostScreen(
-    onItemClick: (NavKey) -> Unit,
+    onPostClick: (postId: Int) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PostViewModel = hiltViewModel()
 ) {
@@ -46,6 +45,7 @@ fun PostScreen(
         is Success -> {
             PostContent(
                 posts = (uiState as Success).data,
+                onPostClick = onPostClick,
                 onToggleLike = viewModel::toggleLike,
                 modifier = modifier
             )
@@ -72,6 +72,7 @@ fun PostScreen(
 @Composable
 private fun PostContent(
     posts: List<Post>,
+    onPostClick: (postId: Int) -> Unit,
     onToggleLike: (postId: Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -82,6 +83,7 @@ private fun PostContent(
         items(posts, key = { it.id }) { post ->
             PostItem(
                 post = post,
+                onClick = { onPostClick(post.id) },
                 onToggleLike = { onToggleLike(post.id) }
             )
         }
@@ -91,10 +93,12 @@ private fun PostContent(
 @Composable
 private fun PostItem(
     post: Post,
+    onClick: () -> Unit,
     onToggleLike: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -143,6 +147,7 @@ private fun DefaultPreview() {
                 Post(2, 1, "Second Post Title", "This is the body of the second post"),
                 Post(3, 2, "Third Post Title", "This is the body of the third post")
             ),
+            onPostClick = {},
             onToggleLike = {}
         )
     }
@@ -157,6 +162,7 @@ private fun PortraitPreview() {
                 Post(1, 1, "First Post Title", "This is the body of the first post", isLiked = true),
                 Post(2, 1, "Second Post Title", "This is the body of the second post")
             ),
+            onPostClick = {},
             onToggleLike = {}
         )
     }
