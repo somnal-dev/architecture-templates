@@ -77,12 +77,17 @@ find ./ -type f -name "*.kts" -exec sed "${SED_INPLACE[@]}" "s/android.template/
 PKG_LAST="$(echo "$PACKAGE" | awk -F'.' '{print $NF}')"
 find ./build-logic -type f -name "*.kts" -exec sed "${SED_INPLACE[@]}" "s/template\.android/$PKG_LAST.android/g" {} \;
 find ./build-logic -type f -name "*.kts" -exec sed "${SED_INPLACE[@]}" "s/template\.hilt/$PKG_LAST.hilt/g" {} \;
+# Convention plugin sources also embed plugin IDs as strings (apply(plugin = "template.android.library.compose"))
+find ./build-logic -type f -name "*.kt" -exec sed "${SED_INPLACE[@]}" "s/template\.android/$PKG_LAST.android/g" {} \;
+find ./build-logic -type f -name "*.kt" -exec sed "${SED_INPLACE[@]}" "s/template\.hilt/$PKG_LAST.hilt/g" {} \;
 # Rename plugin references in all module build.gradle.kts
 find ./ -path ./build-logic -prune -o -type f -name "*.kts" -exec sed "${SED_INPLACE[@]}" "s/template\.android/$PKG_LAST.android/g" {} \;
 find ./ -path ./build-logic -prune -o -type f -name "*.kts" -exec sed "${SED_INPLACE[@]}" "s/template\.hilt/$PKG_LAST.hilt/g" {} \;
-# Also fix plugin alias entries in libs.versions.toml
+# Also fix plugin alias entries in libs.versions.toml (both the id values and the dash-form keys)
 find ./gradle -type f -name "*.toml" -exec sed "${SED_INPLACE[@]}" "s/template\.android/$PKG_LAST.android/g" {} \;
 find ./gradle -type f -name "*.toml" -exec sed "${SED_INPLACE[@]}" "s/template\.hilt/$PKG_LAST.hilt/g" {} \;
+find ./gradle -type f -name "*.toml" -exec sed "${SED_INPLACE[@]}" "s/^template-android/$PKG_LAST-android/g" {} \;
+find ./gradle -type f -name "*.toml" -exec sed "${SED_INPLACE[@]}" "s/^template-hilt/$PKG_LAST-hilt/g" {} \;
 
 echo "Renaming model to $DATAMODEL"
 find ./ -type f -name "*.kt" -exec sed "${SED_INPLACE[@]}" "s/Post/$DATAMODEL_UPPER/g" {} \;
