@@ -108,26 +108,10 @@ android-template() {
 
     echo
     echo "Running customizer..."
-    ./customizer.sh "$package" "$datamodel" "$appname" || exit 1
+    ./customizer.sh "$package" "$datamodel" "$appname" "$projectname" || exit 1
 
     if [[ -x ./trim.sh ]]; then
       ./trim.sh || true
-    fi
-
-    # Set rootProject.name in settings.gradle.kts
-    if [[ -f settings.gradle.kts ]]; then
-      local sed_inplace
-      if [[ "$(uname)" == "Darwin" ]]; then
-        sed_inplace=(-i '')
-      else
-        sed_inplace=(-i)
-      fi
-      # Escape for sed: backslash, slash, and ampersand.
-      local escaped="${projectname//\\/\\\\}"
-      escaped="${escaped//\//\\/}"
-      escaped="${escaped//&/\\&}"
-      sed "${sed_inplace[@]}" -E "s/^(rootProject\\.name[[:space:]]*=[[:space:]]*).*/\\1\"$escaped\"/" settings.gradle.kts
-      echo "settings.gradle.kts: rootProject.name = \"$projectname\""
     fi
   ) || {
     echo "Setup failed. Leaving $project_dir for inspection." >&2

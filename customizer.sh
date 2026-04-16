@@ -11,6 +11,7 @@ set -e
 PACKAGE=$1
 DATAMODEL=$2
 APPNAME=$3
+PROJECTNAME=$4
 
 if [[ -z "$PACKAGE" ]]; then
     read -p "Enter new package name (e.g. com.example.app): " PACKAGE
@@ -33,6 +34,10 @@ if [[ -z "$APPNAME" ]]; then
 fi
 if [[ -z "$APPNAME" ]]; then
     APPNAME="MyApplication"
+fi
+
+if [[ -z "$PROJECTNAME" ]]; then
+    read -p "Enter Gradle project name (Optional, default: keep current): " PROJECTNAME
 fi
 SUBDIR=${PACKAGE//.//}
 
@@ -121,6 +126,14 @@ then
     find ./ -type f \( -name "*.kt" -or -name "*.kts" -or -name "*.xml" -or -path "*/src/main/AndroidManifest.xml" \) -exec sed "${SED_INPLACE[@]}" "s/MyApplication/$APPNAME/g" {} \;
     find ./ -name "MyApplication.kt" | sed "p;s/MyApplication/$APPNAME/" | tr '\n' '\0' | xargs -0 -n 2 mv
     find . -name "*.bak" -type f -delete
+fi
+
+if [[ -n "$PROJECTNAME" && -f settings.gradle.kts ]]; then
+    echo "Setting rootProject.name to \"$PROJECTNAME\""
+    ESCAPED_PROJECTNAME="${PROJECTNAME//\\/\\\\}"
+    ESCAPED_PROJECTNAME="${ESCAPED_PROJECTNAME//\//\\/}"
+    ESCAPED_PROJECTNAME="${ESCAPED_PROJECTNAME//&/\\&}"
+    sed "${SED_INPLACE[@]}" -E "s/^(rootProject\\.name[[:space:]]*=[[:space:]]*).*/\\1\"$ESCAPED_PROJECTNAME\"/" settings.gradle.kts
 fi
 
 echo "Removing additional files"
