@@ -51,7 +51,7 @@ cat >> "$ZSHRC" <<'EOF'
 # Usage: run `android-template` in the directory where you want the new project.
 android-template() {
   local repo_url="https://github.com/somnal-dev/architecture-templates.git"
-  local project_dir package datamodel appname
+  local project_dir projectname package datamodel appname
 
   echo "=== Android Architecture Template ==="
 
@@ -66,21 +66,27 @@ android-template() {
     return 1
   fi
 
-  # 2) Package name
+  # 2) Gradle rootProject.name (settings.gradle.kts)
+  read "projectname?Gradle project name [$project_dir]: "
+  if [[ -z "$projectname" ]]; then
+    projectname="$project_dir"
+  fi
+
+  # 3) Package name
   read "package?Package name (e.g. com.example.app): "
   if [[ -z "$package" ]]; then
     echo "Package name is required." >&2
     return 1
   fi
 
-  # 3) Data model name
+  # 4) Data model name
   read "datamodel?Data model name (e.g. Item): "
   if [[ -z "$datamodel" ]]; then
     echo "Data model name is required." >&2
     return 1
   fi
 
-  # 4) Application class name (optional)
+  # 5) Application class name (optional)
   read "appname?Application class name [MyApplication]: "
   if [[ -z "$appname" ]]; then
     appname="MyApplication"
@@ -108,10 +114,21 @@ android-template() {
       ./trim.sh || true
     fi
 
-    # Initialize a fresh git repo for the new project.
-    git init -q
-    git add -A
-    git commit -q -m "chore: bootstrap from android-template"
+    # Set rootProject.name in settings.gradle.kts
+    if [[ -f settings.gradle.kts ]]; then
+      local sed_inplace
+      if [[ "$(uname)" == "Darwin" ]]; then
+        sed_inplace=(-i '')
+      else
+        sed_inplace=(-i)
+      fi
+      # Escape for sed: backslash, slash, and ampersand.
+      local escaped="${projectname//\\/\\\\}"
+      escaped="${escaped//\//\\/}"
+      escaped="${escaped//&/\\&}"
+      sed "${sed_inplace[@]}" -E "s/^(rootProject\\.name[[:space:]]*=[[:space:]]*).*/\\1\"$escaped\"/" settings.gradle.kts
+      echo "settings.gradle.kts: rootProject.name = \"$projectname\""
+    fi
   ) || {
     echo "Setup failed. Leaving $project_dir for inspection." >&2
     return 1
