@@ -179,7 +179,55 @@ interface DataModule {
 
 `feature/` 아래에 두 개의 Gradle 모듈을 만듭니다: `api`와 `impl`.
 
-#### 4-1. 디렉토리 구조 만들기
+모듈을 만드는 방법은 두 가지입니다. Android Studio를 사용하거나 수동으로 만들 수 있습니다.
+
+#### 방법 A. Android Studio에서 모듈 추가 (권장)
+
+**api 모듈 만들기**
+
+1. 메뉴에서 **File > New > New Module...** 클릭
+2. 왼쪽 목록에서 **Android Library** 선택
+3. 아래 값을 입력:
+   - Module name: `feature:comment:api` (콜론으로 구분하면 중첩 모듈로 생성됨)
+   - Package name: `android.template.feature.comment.api`
+   - Language: Kotlin
+   - Minimum SDK: 프로젝트 기본값 유지
+4. **Finish** 클릭
+
+**impl 모듈 만들기**
+
+1. 다시 **File > New > New Module...**
+2. **Android Library** 선택
+3. 아래 값을 입력:
+   - Module name: `feature:comment:impl`
+   - Package name: `android.template.feature.comment`
+   - Language: Kotlin
+4. **Finish** 클릭
+
+생성 후 해야 할 것:
+
+- Android Studio가 자동 생성한 `build.gradle.kts`의 plugins 블록을 이 프로젝트 convention plugin으로 교체한다 (아래 4-3, 4-4 참조).
+- 자동 생성된 불필요한 파일(`libs.versions.toml` 중복 항목, `androidTest` 샘플 등)을 정리한다.
+- `src/main/java/` 폴더가 생겼다면 `src/main/kotlin/`으로 이름을 바꾼다 (우클릭 > Refactor > Rename).
+
+#### 방법 B. 수동으로 디렉토리 생성
+
+터미널에서 직접 만드는 방법입니다. 파일 구조를 정확히 통제할 수 있어 이 프로젝트에서는 이 방법이 더 깔끔합니다.
+
+```bash
+# api 모듈
+mkdir -p feature/comment/api/src/main/kotlin/android/template/feature/comment/api
+
+# impl 모듈
+mkdir -p feature/comment/impl/src/main/kotlin/android/template/feature/comment/ui
+mkdir -p feature/comment/impl/src/main/kotlin/android/template/feature/comment/api
+mkdir -p feature/comment/impl/src/test/kotlin/android/template/feature/comment/ui
+mkdir -p feature/comment/impl/src/androidTest/kotlin/android/template/feature/comment/ui
+```
+
+이후 아래의 build.gradle.kts 파일을 각 모듈에 생성합니다.
+
+#### 최종 디렉토리 구조
 
 ```
 feature/comment/
@@ -195,12 +243,17 @@ feature/comment/
             └── CommentViewModel.kt
 ```
 
-#### 4-2. `settings.gradle.kts`에 모듈 등록
+#### 4-1. `settings.gradle.kts`에 모듈 등록
+
+방법 A를 사용했다면 Android Studio가 자동으로 추가하지만, 올바른지 확인합니다.
+방법 B를 사용했다면 직접 추가합니다.
 
 ```kotlin
 include(":feature:comment:api")
 include(":feature:comment:impl")
 ```
+
+추가 후 Android Studio 상단의 **Sync Now** 배너를 클릭하거나, **File > Sync Project with Gradle Files**를 실행합니다. Sync가 완료되면 Project 탐색기에 새 모듈이 나타납니다.
 
 #### 4-3. `feature/comment/api/build.gradle.kts`
 
@@ -241,11 +294,11 @@ android {
 }
 
 dependencies {
-    implementation(project(":core:data"))
-    implementation(project(":core:ui"))
-    implementation(project(":feature:comment:api"))
+    implementation(projects.core.data)
+    implementation(projects.core.ui)
+    implementation(projects.feature.comment.api)
 
-    androidTestImplementation(project(":core:testing"))
+    androidTestImplementation(projects.core.testing)
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
@@ -442,11 +495,11 @@ fun EntryProviderScope<NavKey>.CommentEntryProvider(backStack: NavBackStack<NavK
 
 ```kotlin
 dependencies {
-    implementation(project(":core:ui"))
-    implementation(project(":feature:post:impl"))
-    implementation(project(":feature:post:api"))
-    implementation(project(":feature:comment:impl"))   // 추가
-    implementation(project(":feature:comment:api"))    // 추가
+    implementation(projects.core.ui)
+    implementation(projects.feature.post.impl)
+    implementation(projects.feature.post.api)
+    implementation(projects.feature.comment.impl)   // 추가
+    implementation(projects.feature.comment.api)    // 추가
     // ...
 }
 ```
