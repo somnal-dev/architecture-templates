@@ -8,6 +8,7 @@
 | [database-development-guide.md](./database-development-guide.md) | `core:database` — Room Entity/Dao 추가, 마이그레이션, 스키마 커밋 규칙. |
 | [datastore-development-guide.md](./datastore-development-guide.md) | `core:datastore` — Preferences DataStore 키 추가, Repository 연동, 마이그레이션. |
 | [di-singleton-guide.md](./di-singleton-guide.md) | Hilt DI — `@Provides` vs `@Binds`, `@Singleton` 사용 기준, 자주 하는 실수. |
+| [auth-development-guide.md](./auth-development-guide.md) | 인증(Auth) — 로그인, 토큰 저장(DataStore), 자동 헤더 주입(Interceptor), 토큰 갱신(Authenticator). |
 | [test-writing-guide.md](./test-writing-guide.md) | JVM 단위 테스트, Compose UI 테스트, E2E 테스트 작성법과 실행 명령어. |
 
 처음 시작할 때는 `feature-development-guide.md` → `database-development-guide.md` / `datastore-development-guide.md` → `test-writing-guide.md` 순서로 읽는 것을 권장합니다.
