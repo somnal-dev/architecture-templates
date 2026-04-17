@@ -5,5 +5,8 @@ data class Post(
     val userId: Int,
     val title: String,
     val body: String,
-    val isLiked: Boolean = false
+    val tags: List<String> = emptyList(),
+    val likes: Int = 0,
+    val views: Int = 0,
+    val isLiked: Boolean = false,
 )
