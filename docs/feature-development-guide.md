@@ -55,8 +55,9 @@ feature/xxx/impl  ──▶  feature/xxx/api ──▶ core/navigation
 
 "Comment" 기능을 추가한다고 가정합니다.
 
-- API: `GET https://jsonplaceholder.typicode.com/comments`
+- API: `GET https://dummyjson.com/comments/post/{postId}` — 특정 게시글의 댓글 목록
 - 화면: 댓글 목록을 보여주는 `CommentScreen`
+- 응답 형태: `{ "comments": [...], "total", "skip", "limit" }` — Post API와 같은 래핑 구조
 
 아래 단계를 순서대로 진행합니다.
 
@@ -72,34 +73,83 @@ package android.template.core.model
 data class Comment(
     val id: Int,
     val postId: Int,
-    val name: String,
-    val email: String,
-    val body: String
+    val body: String,
+    val likes: Int,
+    val username: String,
+    val fullName: String,
 )
 ```
+
+> API 응답의 중첩 객체(`user.username`, `user.fullName`)를 도메인 모델에서는 평탄화(flatten)한다. 서버 구조를 그대로 노출하면 UI가 `comment.user.fullName`처럼 접근해야 해서 결합도가 높아진다.
 
 체크리스트
 
 - [ ] `core/model`에만 둔다 (데이터 클래스는 어느 레이어에서도 접근 가능해야 함).
-- [ ] 기본값을 주지 말고 생성자 파라미터로만 정의한다 (누락 시 컴파일러가 잡도록).
-- [ ] JSON 필드와 이름이 다르면 Gson annotation 대신 Kotlin 이름을 API 필드와 일치시키거나 `@SerializedName` 사용.
+- [ ] 서버 응답 구조와 다르더라도 **UI가 쓰기 편한 형태**로 정의한다. 매핑은 Repository에서 한다.
+- [ ] `Post`와 마찬가지로 네트워크 DTO(`CommentNetwork`)를 별도로 만들고 `toDomain()`으로 변환한다.
 
 ---
 
-### 단계 2. 네트워크 API 추가
+### 단계 2. 네트워크 DTO + API 추가
+
+#### 2-1. DTO 정의
+
+위치: `core/network/src/main/kotlin/android/template/core/network/api/CommentNetwork.kt`
+
+> `PostNetwork.kt`와 같은 패턴이다. 서버 응답 스키마를 그대로 담는 DTO를 만들고, `toDomain()`으로 도메인 모델로 변환한다.
+
+```kotlin
+package android.template.core.network.api
+
+import android.template.core.model.Comment
+
+data class CommentsResponse(
+    val comments: List<CommentNetwork>,
+    val total: Int,
+    val skip: Int,
+    val limit: Int,
+)
+
+data class CommentNetwork(
+    val id: Int,
+    val body: String,
+    val postId: Int,
+    val likes: Int = 0,
+    val user: CommentUser = CommentUser(),
+) {
+    data class CommentUser(
+        val id: Int = 0,
+        val username: String = "",
+        val fullName: String = "",
+    )
+}
+
+fun CommentNetwork.toDomain(): Comment = Comment(
+    id = id,
+    postId = postId,
+    body = body,
+    likes = likes,
+    username = user.username,
+    fullName = user.fullName,
+)
+```
+
+#### 2-2. Retrofit 인터페이스
 
 위치: `core/network/src/main/kotlin/android/template/core/network/api/CommentApi.kt`
 
 ```kotlin
 package android.template.core.network.api
 
-import android.template.core.model.Comment
 import retrofit2.http.GET
-import retrofit2.http.Query
+import retrofit2.http.Path
 
+/**
+ * https://dummyjson.com/docs/comments
+ */
 interface CommentApi {
-    @GET("comments")
-    suspend fun getComments(@Query("postId") postId: Int? = null): List<Comment>
+    @GET("comments/post/{postId}")
+    suspend fun getCommentsByPost(@Path("postId") postId: Int): CommentsResponse
 }
 ```
 
@@ -116,7 +166,8 @@ fun provideCommentApi(retrofit: Retrofit): CommentApi {
 체크리스트
 
 - [ ] 모든 API 메서드는 `suspend`로 선언한다.
-- [ ] 파라미터가 있다면 `@Path`, `@Query`, `@Body` 중 적절한 것을 쓴다.
+- [ ] **도메인 모델(`Comment`)을 직접 반환하지 않는다.** DTO(`CommentsResponse`)를 반환하고 Repository에서 `toDomain()`으로 변환.
+- [ ] dummyjson의 `comments/post/{postId}` 엔드포인트는 `@Path`를 쓴다 (쿼리 파라미터가 아님).
 - [ ] Retrofit은 `NetworkModule`에 이미 구성돼 있어 provider만 추가하면 된다 (OkHttp 로깅 포함).
 
 ---
@@ -130,6 +181,7 @@ package android.template.core.data
 
 import android.template.core.model.Comment
 import android.template.core.network.api.CommentApi
+import android.template.core.network.api.toDomain
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
@@ -139,11 +191,12 @@ interface CommentRepository {
 }
 
 class DefaultCommentRepository @Inject constructor(
-    private val commentApi: CommentApi
+    private val commentApi: CommentApi,
 ) : CommentRepository {
 
     override fun commentsForPost(postId: Int): Flow<List<Comment>> = flow {
-        emit(commentApi.getComments(postId = postId))
+        val response = commentApi.getCommentsByPost(postId)
+        emit(response.comments.map { it.toDomain() })
     }
 }
 ```
@@ -422,7 +475,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -433,7 +486,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun CommentScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: CommentViewModel = hiltViewModel()
+    viewModel: CommentViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     CommentContent(state = state, onBack = onBack, modifier = modifier)
@@ -451,12 +504,12 @@ private fun CommentContent(
         }
         is CommentUiState.Error -> Text(
             text = "Error: ${state.throwable.message}",
-            modifier = modifier.padding(16.dp)
+            modifier = modifier.padding(16.dp),
         )
         is CommentUiState.Success -> LazyColumn(
             modifier = modifier,
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(16.dp)
+            contentPadding = PaddingValues(16.dp),
         ) {
             items(state.data, key = { it.id }) { comment ->
                 CommentItem(comment)
@@ -469,8 +522,14 @@ private fun CommentContent(
 private fun CommentItem(comment: Comment) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text(text = comment.name, style = MaterialTheme.typography.titleSmall)
-            Text(text = comment.email, style = MaterialTheme.typography.bodySmall)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(text = comment.fullName, style = MaterialTheme.typography.titleSmall)
+                Text(text = "♥ ${comment.likes}", style = MaterialTheme.typography.labelSmall)
+            }
+            Text(text = "@${comment.username}", style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(4.dp))
             Text(text = comment.body, style = MaterialTheme.typography.bodyMedium)
         }
@@ -736,4 +795,6 @@ fun EntryProviderScope<NavKey>.PostEntry(navigator: Navigator) {
 
 ## 7. 참고 레퍼런스
 
-이 프로젝트 구조는 [nowinandroid](https://github.com/android/nowinandroid) 공식 Android 샘플 앱의 구조를 따릅니다. 추가로 깊이 있는 예시가 필요하면 해당 저장소의 `feature/foryou`, `feature/bookmarks` 등을 참고하세요.
+- [nowinandroid](https://github.com/android/nowinandroid) — 이 프로젝트의 모듈 구조·DI·네비게이션 패턴의 원본.
+- [dummyjson.com/docs](https://dummyjson.com/docs) — 이 템플릿에서 사용하는 REST API. [posts](https://dummyjson.com/docs/posts), [comments](https://dummyjson.com/docs/comments), [auth](https://dummyjson.com/docs/auth) 참조.
+- [auth-development-guide.md](./auth-development-guide.md) — 로그인·토큰 저장·자동 갱신 구현 가이드.
