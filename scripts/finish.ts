@@ -33,8 +33,8 @@ const FILES_TO_REMOVE: FileToRemove[] = [
   // 스크립트 폴더 전체
   { path: 'scripts', reason: '템플릿 생성 스크립트들' },
 
-  // 빌드 로직 (템플릿용)
-  { path: 'build-logic', reason: '템플릿 전용 빌드 로직' },
+  // 빌드 로직 (템플릿용) - 남기기: build-logic은 각 모듈의 build.gradle.kts에서 사용 중
+  // { path: 'build-logic', reason: '템플릿 전용 빌드 로직' },
 
   // 템플릿 문서들
   { path: 'CLAUDE.md', reason: 'Claude Code 템플릿 가이드' },
@@ -136,7 +136,7 @@ function updateSettingsGradle(): void {
 
   const content = readFileSync(settingsPath, 'utf-8')
 
-  // rootProject.name 제거 또는 업데이트
+  // rootProject.name 업데이트 (includeBuild("build-logic")은 유지)
   const updatedContent = content.replace(
     /rootProject\.name\s*=\s*"[^"]+"/g,
     'rootProject.name = "app"'
