@@ -1,0 +1,10 @@
+{
+  "name": "architecture-templates",
+  "packageManager": "yarn@4.14.1",
+  "private": true,
+  "scripts": {
+    "scaffold": "bash scaffold.sh",
+    "new": "bash scaffold.sh",
+    "new:feature": "bash scaffold.sh"
+  }
+}
