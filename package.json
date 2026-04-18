@@ -8,7 +8,8 @@
     "clean": "tsx scripts/clean.ts",
     "register": "tsx scripts/register.ts",
     "db": "tsx --env-file=.env scripts/db.ts",
-    "migrate": "tsx --env-file=.env scripts/migrate.ts"
+    "migrate": "tsx --env-file=.env scripts/migrate.ts",
+    "finish": "tsx scripts/finish.ts"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.103.3",
