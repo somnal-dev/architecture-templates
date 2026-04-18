@@ -1,7 +1,11 @@
 #!/usr/bin/env tsx
 /**
  * db.ts
- * Supabase JS 클라이언트로 스키마/테이블 목록을 조회합니다.
+ * @supabase/supabase-js 로 app 스키마 테이블에 접근하는 예제입니다.
+ *
+ * 전제 조건:
+ *   - Supabase Studio SQL Editor에서 app 스키마 생성 쿼리 실행
+ *   - app 스키마에 테이블이 존재해야 함
  *
  * .env 설정:
  *   SUPABASE_URL=https://choi-choi.duckdns.org:60001
@@ -12,94 +16,74 @@
  */
 import { createClient } from '@supabase/supabase-js';
 
-const SYSTEM_SCHEMAS = new Set([
-  'pg_toast',
-  'pg_catalog',
-  'pg_temp_1',
-  'pg_toast_temp_1',
-  'information_schema',
-]);
+// ─── 타입 정의 ──────────────────────────────────────────────────────────────
+// app 스키마 테이블 타입을 여기에 정의합니다.
+// 예시: projects 테이블
+interface Project {
+  id: number;
+  name: string;
+  description: string | null;
+  created_at: string;
+}
 
 async function main() {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.SUPABASE_URL!;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error('❌ 환경변수가 필요합니다.');
-    console.error('   SUPABASE_URL=...');
-    console.error('   SUPABASE_SERVICE_ROLE_KEY=...');
-    process.exit(1);
-  }
-
+  // ─── 클라이언트 생성 ──────────────────────────────────────────────────────
+  // service_role 키: RLS 우회, 모든 데이터 접근 가능 (서버 전용)
+  // anon 키: RLS 적용, 클라이언트 앱에서 사용
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
+    db: { schema: 'app' },          // 기본 스키마를 app으로 설정
   });
 
-  console.log(`🔗 ${supabaseUrl}\n`);
+  // ─── app 스키마 기본 접근 ─────────────────────────────────────────────────
+  // db.schema 를 'app' 으로 설정했으므로 바로 from() 사용 가능
+  const { data: projects, error } = await supabase
+    .from('projects')               // app.projects
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(10);
 
-  // ─── 스키마 목록 ───────────────────────────────────────────────────
-  const { data: schemas, error: schemaErr } = await supabase
-    .schema('information_schema')
-    .from('schemata')
-    .select('schema_name, schema_owner');
-
-  if (schemaErr) throw new Error(`스키마 조회 실패: ${schemaErr.message}`);
-
-  const userSchemas = schemas!.filter((s: { schema_name: string }) => !SYSTEM_SCHEMAS.has(s.schema_name));
-  const hiddenCount = schemas!.length - userSchemas.length;
-
-  console.log('━━━ 스키마 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  for (const s of userSchemas as { schema_name: string; schema_owner: string }[]) {
-    console.log(`  ${s.schema_name.padEnd(32)} owner: ${s.schema_owner}`);
-  }
-  if (hiddenCount > 0) {
-    console.log(`  (시스템 스키마 ${hiddenCount}개 숨김)`);
-  }
-  console.log(`\n  총 ${userSchemas.length}개 (시스템 제외)\n`);
-
-  // ─── 테이블 · 뷰 목록 ──────────────────────────────────────────────
-  const { data: tables, error: tableErr } = await supabase
-    .schema('information_schema')
-    .from('tables')
-    .select('table_schema, table_name, table_type')
-    .not('table_schema', 'in', `(${[...SYSTEM_SCHEMAS].join(',')})`)
-    .order('table_schema')
-    .order('table_name');
-
-  if (tableErr) throw new Error(`테이블 조회 실패: ${tableErr.message}`);
-
-  type TableRow = { table_schema: string; table_name: string; table_type: string };
-
-  const bySchema = new Map<string, TableRow[]>();
-  for (const row of tables as TableRow[]) {
-    if (!bySchema.has(row.table_schema)) bySchema.set(row.table_schema, []);
-    bySchema.get(row.table_schema)!.push(row);
+  if (error) {
+    console.error('조회 실패:', error.message);
+    return;
   }
 
-  console.log('━━━ 테이블 / 뷰 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  for (const [schema, rows] of bySchema) {
-    const baseTables = rows.filter(r => r.table_type === 'BASE TABLE');
-    const views      = rows.filter(r => r.table_type === 'VIEW');
+  console.log('app.projects:', projects);
 
-    console.log(`\n  [${schema}]  (테이블 ${baseTables.length}개, 뷰 ${views.length}개)`);
+  // ─── 다른 스키마 접근 ─────────────────────────────────────────────────────
+  // 기본값과 다른 스키마는 .schema() 로 전환
+  const { data: authUsers } = await supabase
+    .schema('auth')
+    .from('users')
+    .select('id, email, created_at')
+    .limit(5);
 
-    for (const r of baseTables) {
-      console.log(`    ${r.table_name}`);
-    }
-    if (views.length > 0) {
-      console.log(`    ── 뷰 ──`);
-      for (const r of views) {
-        console.log(`    ${r.table_name}`);
-      }
-    }
-  }
+  console.log('auth.users:', authUsers);
 
-  const totalTables = (tables as TableRow[]).filter(r => r.table_type === 'BASE TABLE').length;
-  const totalViews  = (tables as TableRow[]).filter(r => r.table_type === 'VIEW').length;
-  console.log(`\n  총 테이블 ${totalTables}개 · 뷰 ${totalViews}개\n`);
+  // ─── INSERT 예시 ──────────────────────────────────────────────────────────
+  // const { data: newProject, error: insertError } = await supabase
+  //   .from('projects')
+  //   .insert({ name: '새 프로젝트', description: '설명' })
+  //   .select()
+  //   .single();
+
+  // ─── UPDATE 예시 ──────────────────────────────────────────────────────────
+  // const { error: updateError } = await supabase
+  //   .from('projects')
+  //   .update({ description: '수정된 설명' })
+  //   .eq('id', 1);
+
+  // ─── DELETE 예시 ──────────────────────────────────────────────────────────
+  // const { error: deleteError } = await supabase
+  //   .from('projects')
+  //   .delete()
+  //   .eq('id', 1);
 }
 
 main().catch(err => {
-  console.error('\n❌ 오류:', err.message);
+  console.error('❌ 오류:', err.message);
   process.exit(1);
 });
