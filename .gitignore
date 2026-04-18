@@ -21,3 +21,4 @@ build/
 .externalNativeBuild
 .cxx
 local.properties
+.env

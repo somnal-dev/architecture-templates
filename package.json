@@ -3,13 +3,14 @@
   "packageManager": "yarn@4.14.1",
   "private": true,
   "scripts": {
-    "scaffold": "tsx scripts/scaffold.ts",
-    "new": "tsx scripts/scaffold.ts",
-    "new:feature": "tsx scripts/scaffold.ts",
-    "custom": "tsx scripts/customizer.ts",
-    "trim": "tsx scripts/trim.ts"
+    "new": "tsx scripts/new.ts",
+    "setup": "tsx scripts/setup.ts",
+    "clean": "tsx scripts/clean.ts",
+    "register": "tsx scripts/register.ts",
+    "db": "tsx --env-file=.env scripts/db.ts"
   },
   "devDependencies": {
+    "@supabase/supabase-js": "^2.103.3",
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"

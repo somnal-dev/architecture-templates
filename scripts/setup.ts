@@ -98,19 +98,15 @@ async function main() {
   process.chdir(projectRoot);
 
   // ─── Gather inputs ─────────────────────────────────────────
-  let packageName  = args[0] || '';
-  let dataModel    = args[1] || '';
-  let appName      = args[2] || '';
-  let projectName  = args[3] || '';
+  let packageName = args[0] || '';
+  let dataModel   = args[1] || '';
+  let projectName = args[2] || '';
 
   if (!packageName) packageName = await prompt('Enter new package name (e.g. com.example.app): ');
   if (!packageName) { console.error('Package name is required. Exiting.'); rl.close(); process.exit(2); }
 
   if (!dataModel) dataModel = await prompt('Enter new data model name (e.g. Item): ');
   if (!dataModel) { console.error('Data model name is required. Exiting.'); rl.close(); process.exit(2); }
-
-  if (!appName) appName = await prompt('Enter application name (Optional, default: MyApplication): ');
-  if (!appName) appName = 'MyApplication';
 
   if (!projectName) projectName = await prompt('Enter Gradle project name (Optional, default: keep current): ');
 
@@ -253,25 +249,6 @@ async function main() {
       const newPath = path.join(path.dirname(d), dataModelAllLower);
       fs.renameSync(d, newPath);
     }
-  }
-
-  // ─── Rename app name ──────────────────────────────────────
-  if (appName !== 'MyApplication') {
-    console.log(`Renaming app to ${appName}`);
-    const appFiles = findFiles('.', f =>
-      f.endsWith('.kt') || f.endsWith('.kts') || f.endsWith('.xml') || f.endsWith('AndroidManifest.xml')
-    );
-    for (const file of appFiles) {
-      if (!fs.existsSync(file)) continue;
-      replaceInFile(file, /MyApplication/g, appName);
-    }
-
-    // Rename MyApplication.kt files
-    const myAppFiles = findFiles('.', f => path.basename(f) === 'MyApplication.kt');
-    for (const f of myAppFiles) {
-      fs.renameSync(f, path.join(path.dirname(f), `${appName}.kt`));
-    }
-    for (const f of findFiles('.', f => f.endsWith('.bak'))) fs.unlinkSync(f);
   }
 
   // ─── Set project name ─────────────────────────────────────

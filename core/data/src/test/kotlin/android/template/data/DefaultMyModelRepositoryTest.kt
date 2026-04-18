@@ -17,7 +17,7 @@ import org.junit.Test
 /**
  * Unit tests for [DefaultPostRepository].
  */
-@OptIn(ExperimentalCoroutinesApi::class) // TODO: Remove when stable
+@OptIn(ExperimentalCoroutinesApi::class)
 class DefaultPostRepositoryTest {
 
     @Test
